@@ -1,0 +1,180 @@
+---
+title: "EarthQuake Visual"
+author: "Christian Saenz"
+date: "2024-03-04"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This project is about earthquakes but more specifically the occurrence of earthquakes from 1995-2023 and their magnitude. I created this project out of curiosity about the number of earthquakes that have happened over time and with the idea that the United States would have a decent amount. My results portrayed the opposite and had found that my initial assumption of the occurrence of earthquakes over time were also wrong. Which is why I thought others might as well be surprised of the results but also provide insight and knowledge on where earthquakes happen and their magnitude.
+
+
+
+
+## Data Source
+
+The data source I used was from Kraggele and was the Earthquake Data set which can be found at this link here: [Earthquake Dataset on Kaggle](https://www.kaggle.com/datasets/warcoder/earthquake-dataset)
+The specific data set I used was the Earthquake_1995-2023. 
+
+
+
+## Methods
+The methods used in the project were color, shape, and position. All three principles were used throughout the project and at times used in different ways to project different views of the data. Color was used the most often to portray the magnitude of earthquakes to the occurrence of earthquakes to allow a better visual representation of varying magnitudes in relation to their location. Shape was used in the aspect of the “rnaturalearthlibrary” At first I had plotted the points with respect to x and y of longitude and latitude which turned out to be very confusing and hard read. Which caused the additon of the “rnaturalearthlibrary” which provides an outline shape of the world which allowed me to better represent the locations at which these earthquakes occurred at. Position was used to represent the points and how were able to map our points to their countries which were done by marking the graph with x being the longitude and y being the latitude. Which allowed a better visual for our results and an easier understanding of what we are portraying. 
+
+## Code 
+
+## Important Libaries 
+
+Two big libraries I used throughout this project were sf and rnaturalearth.
+
+The sf library is used in the beginning and changes the earthquake data set from a data frame object into a simple feature object. An sf object allows the data in the set to not just be numbers or data but actually represent what there related to, in my case, it was tying the longitude and latitude points to their actual locations. The reason I did this was so that I could later use rnaturalearth to create a better visualization for my results. Converting to an sf object allowed the usage of rnaturalearthlibrary which sets up the boundaries and outlines for the different countries. 
+
+```{r load-libaries}
+library(readr)
+library(ggplot2)
+library(rnaturalearth)  # Gives access to the natural earth map/ borderlines for countries etc
+library(dplyr)
+library(sf) #Converts a df object to an sf object
+
+# Load earthquake data
+df <- read_csv("earthquake_1995-2023.csv")
+# loading in ne_countiries from naturalearth and naming it world
+world <- ne_countries(scale = "medium", returnclass = "sf")
+```
+## Data manuplation
+
+
+Throughout this project, the data set was manipulated a lot in order to obtain a clean and easier view of the countries and their reflection of their magnitude. The biggest manipulations that I did were taking away points that I didn't need or didn't play a role in what I was trying to show. This was done by changing our earthquake.csv from a df object to an sf object and joining the longitude and latitude of earthquakes to the natural earth library of their country’s' names. so that the set would only have earthquakes that have happened over countries/locations.
+
+
+```{r Data-manuplation}
+
+
+# Convert earthquake data to an sf object and create a new row called geometry containing the longitude and latitude so we can use it map to countries 
+# "crs = 4326, agr = "constant"" is used to identify the coordinate system which 4326 is a normalized coordinate system which helps get a accurate representation of the locations and constant makes it to where the data of the those longitude and latitude locations are still constant with the rest of the data
+earthquake_sf <- st_as_sf(df, coords = c("longitude", "latitude"), crs = 4326, agr = "constant")
+
+# Perform a spatial join to keep only earthquakes on land
+earthquake_on_land <- earthquake_sf %>%
+  st_join(world, join = st_within) %>%#Joins world and earthquake to only have common countries and locations
+  filter(!is.na(country))#Takes away points that are left na due to not being in a country. 
+```
+
+
+
+## Plotting code
+```{r plot-earthquakes, fig.width=10, fig.height=6}
+
+
+ggplot() +
+  geom_sf(data = world) +  # Plots the countries
+  geom_sf(data = earthquake_on_land, aes(color = magnitude), size = 1, alpha = 0.6) +  # Plots the earthquakes
+  scale_color_gradient(low = "blue", high = "red") +
+  theme_minimal() +
+  labs(title = "Global Earthquake Distribution", x = " ", y = " ", color = "Magnitude")
+
+
+```
+
+##  Information
+
+The graph above shows the occurrence of every earthquake from 1995-2023 including some points in the water. As you can see there aren't many earthquakes occurring in North America and even less in the united states excluding Alaska. I had tied this graph with the earthquake locations to their specific magnitude and used a bar on the far right side to better visualize the ranges of magnitude. The next graph will show which countries are being effected and a better visual of the magnitude range. 
+
+
+##  Average Earthquake Magnitude by Country 
+This graph aims to better represent countries being effected and the average magnetite related to that country. 
+
+## Manuplation to the data
+```{r Data-manuplation2}
+# Recalculate affected countries based on the spatially filtered data
+affected_countries <- df %>%
+  group_by(country) %>% #Groups all contuses to their earthquakes 
+  summarise(n = n(), avg_magnitude = mean(magnitude, na.rm = TRUE)) %>% # sums up the amount of earthquake per country and it excludes any na values so that the calculations are correct
+  filter(n >= 1 ) # only include countries with at least 1 earthquake
+
+#joining earthquake data and its geometry points to its country name in the world set
+# It's specifically doing this by joining affected_countries with world 
+
+world_with_eq_data <- world %>%
+  left_join(affected_countries, by = c("name" = "country")) # joining world and our affected countries by matching the world "name" to affected_countries "country" 
+#which in return leaves with a data set that contains all countries and their average magnitude 
+
+```
+
+## Average Earthquake Magnitude by Country plotting
+```{r plot-earthquakes2, fig.width=10, fig.height=6}
+
+
+ggplot(data = world) +
+  geom_sf() +  # This plots the boundaries of all countries in the world dataset
+  geom_sf(data = world_with_eq_data, aes(fill = avg_magnitude), color = "white", size = 0.2) + #maps the points of the joined world set
+  scale_fill_viridis_c(option = "magma", direction = -1, na.value = "grey") +  # Use grey color for countries without data
+  theme_minimal() +
+  labs(title = "Average Earthquake Magnitude by Country (1995-2023)",
+       fill = "Avg Magnitude")
+
+```
+
+## Information
+This graph aims to better represent the countries affected by earthquakes over time and the average magnitude for each country. However, this isn't perfect by any means since the average calculations are universal for every country and don't consider that some countries only have 1 occurrence therefor reflecting a higher average than others. 
+
+
+## Occurrences by Country 
+
+This graph aims to detail and go along with the other two graphs in the sense of showing the occurrences not from the points but instead through color which for some can be easier to see and understand. 
+
+
+## Manuplation to the data
+```{r Data-manuplation3}
+
+earthquake_df <- read_csv("earthquake_1995-2023.csv")
+
+#  Summing Earthquake Occurrences by Country and leaving countries with no occruacne 
+earthquake_counts_by_country <- earthquake_df %>%
+  group_by(country) %>%#Groups all contuses to their earthquakes 
+  summarise(occurrences = n(), .groups = 'drop') %>%# sums up the amount of earthquake per country and then drops the group so its easier to call on when we graph it 
+  filter(!is.na(country)) # Exclude rows where country is NA
+
+# Obtain Geographic Boundary Data for Countries
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+#  Merge Summed Earthquake Data with Geographic Data
+# Ensure the country names match between earthquake data and world data set
+
+world_with_eq_counts <- merge(world, earthquake_counts_by_country, by.x = "admin", by.y = 'country')
+
+```
+
+## Occurrences by Country plotting
+
+
+
+```{r plot-earthquakes3, fig.width=10, fig.height=6}
+
+ggplot(data = world) +
+  geom_sf() +
+  geom_sf(data = world_with_eq_counts, aes(fill = occurrences), color = "white") +  # Fill countries based on earthquake occurrences
+  scale_fill_gradient(low = "cadetblue3", high = "red", name = "Earthquake\nOccurrences") +  # Use a color scale
+  labs(title = " Occurrences by Country (1995-2023)",
+       fill = "Occurrences") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+
+
+```
+
+## Information
+
+This graph aims to better represent the occurrence of earthquakes in each country that has at least one earthquake leaving those who have never experienced an earthquake in grey and using color to better visualize the occurrence between countries.
+
+
+## Conclusion
+
+Throughout this project, my understanding of earthquakes and the rate at which they occur completely changed and I now felt informed on not only where earthquakes happen the most often but also the magnitude at which they occur.  Which something that I would like to implement into this set for better visualization is not just the countries being affected but the regions themselves so that our visualization can be more precise. A further question I had after probing the set and getting my results were what effects go into these earthquakes why are they located where they are and is our knowledge behind what we know of earthquakes correlating to the data points that are being collected out in the field.
